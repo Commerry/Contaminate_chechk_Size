@@ -1,0 +1,42 @@
+[
+  {
+    "id": "www",
+    "name": "www",
+    "location": "w",
+    "description": "",
+    "status": "active",
+    "created_at": "2026-03-06T13:47:16.560210"
+  },
+  {
+    "id": "aaa",
+    "name": "aaaa",
+    "location": "aaa",
+    "description": "",
+    "status": "active",
+    "created_at": "2026-03-06T13:53:10.541450"
+  },
+  {
+    "id": "MC-02",
+    "name": "????????? 2",
+    "location": "????????? B",
+    "description": "???????????",
+    "status": "active",
+    "created_at": "2026-03-06T14:00:26.180521"
+  },
+  {
+    "id": "MC-03",
+    "name": "Machine Line C",
+    "location": "Production Line C",
+    "description": "Auto test machine",
+    "status": "active",
+    "created_at": "2026-03-06T14:00:27.613374"
+  },
+  {
+    "id": "test01 ",
+    "name": "ww01",
+    "location": "Plane 1",
+    "description": "",
+    "status": "active",
+    "created_at": "2026-03-13T17:05:05.770105"
+  }
+]

@@ -1,0 +1,9 @@
+flask>=2.3.0
+flask-cors>=4.0.0
+flask-socketio>=5.3.6
+python-socketio>=5.11.1
+opencv-contrib-python>=4.10.0
+numpy>=1.26,<2.5
+depthai==2.27.0.0
+pyodbc>=4.0.39
+
