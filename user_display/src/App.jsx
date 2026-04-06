@@ -495,8 +495,15 @@ function App() {
       
       if (payload.running) {
         setRunning(true)
-        // ❌ ไม่ override config dropdown — config ต้องมาจาก Desktop App เท่านั้น
-        // ลบ setSelectedMachineId / setSelectedConfigId ออก
+        // ✅ Sync machine selection from Admin Web
+        if (payload.machine_id) {
+          setSelectedMachineId(payload.machine_id)
+        }
+        // ✅ Sync config selection if config_id exists in payload
+        // Note: Backend sends full config object, extract id if available
+        if (payload.config && payload.config.id) {
+          setSelectedConfigId(String(payload.config.id))
+        }
         
         if (payload.statistics) {
           setStats(payload.statistics)

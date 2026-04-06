@@ -23,7 +23,6 @@
       @open-settings="showSettings = true"
       @open-calibration="showCalibration = true"
       @open-machines="showMachines = true"
-      @open-configurations="showConfigurations = true"
       @open-lots="showLots = true"
       @update:contrast="handleContrastChange"
       @update:colorSchemeChange="handleColorSchemeChange"
@@ -53,7 +52,6 @@
             @open-calibration="showCalibration = true"
             @open-database="showDatabase = true"
             @open-machines="showMachines = true"
-            @open-configurations="showConfigurations = true"
             @open-lots="showLots = true"
           />
           <IconSvg name="clock" :size="16" style="margin-right: 8px; opacity: 0.7;" />
@@ -116,13 +114,6 @@
       v-if="showMachines"
       @close="showMachines = false"
       @updated="handleMachinesUpdated"
-    />
-
-    <!-- Configuration Manager -->
-    <ConfigurationManager
-      v-if="showConfigurations"
-      @close="showConfigurations = false"
-      @updated="handleConfigurationsUpdated"
     />
 
     <!-- LOT Manager -->
@@ -201,7 +192,6 @@ import CalibrationModal from './components/CalibrationModal.vue'
 import DatabaseControl from './components/DatabaseControl.vue'
 import DatabaseSettings from './components/DatabaseSettings.vue'
 import MachineManager from './components/MachineManager.vue'
-import ConfigurationManager from './components/ConfigurationManager.vue'
 import LOTManager from './components/LOTManager.vue'
 import IconSvg from './components/IconSvg.vue'
 import ToastNotification from './components/ToastNotification.vue'
@@ -222,7 +212,6 @@ const isContourDetecting = ref(false)  // ✅ Contour detection state
 const showDatabase = ref(false)  // 🗄️ Database settings modal
 const showSettings = ref(false)
 const showMachines = ref(false)
-const showConfigurations = ref(false)
 const showLots = ref(false)  // 🎯 LOT management modal
 const showCalibration = ref(false)
 const currentTime = ref('')
@@ -545,12 +534,6 @@ const handleCalibrationComplete = (calibrationData) => {
 const handleMachinesUpdated = () => {
   console.log('Machines updated')
   success('อัปเดตเครื่องจักรสำเร็จ')
-}
-
-// Handle configurations updated
-const handleConfigurationsUpdated = () => {
-  console.log('Configurations updated')
-  success('อัปเดต Configurations สำเร็จ')
 }
 
 const handleLotsUpdated = () => {
@@ -1001,6 +984,21 @@ onUnmounted(() => {
 /* Sidebar Overlay */
 .sidebar-overlay {
   display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .main-content {
@@ -1082,7 +1080,7 @@ onUnmounted(() => {
 .content-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr minmax(350px, 400px);
   gap: 20px;
   padding: 20px 30px;
   overflow: hidden;
@@ -1119,9 +1117,14 @@ onUnmounted(() => {
     display: block;
   }
   
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+  
   .header {
     padding: 16px 20px;
-    padding-left: 80px;
+    padding-left: 60px;
   }
   
   .header-title {

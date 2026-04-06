@@ -141,20 +141,25 @@ def get_all_machines():
 
 
 def add_machine(machine_data):
-    """เพิ่ม machine ใหม่"""
+    """เพิ่ม machine ใหม่ (รวม configuration แบบ inline)"""
     try:
         # ตรวจสอบว่า machine_id ซ้ำหรือไม่
         machine_id = machine_data.get('id')
         if any(m.get('id') == machine_id for m in machines):
             return False, f"Machine ID '{machine_id}' already exists"
         
-        # สร้าง machine object
+        # ✅ สร้าง machine object (รวม config)
         new_machine = {
             'id': machine_id,
             'name': machine_data.get('name', ''),
             'location': machine_data.get('location', ''),
             'description': machine_data.get('description', ''),
             'status': machine_data.get('status', 'active'),
+            'config': {
+                'target_area_min': machine_data.get('target_area_min', 500),
+                'target_area_max': machine_data.get('target_area_max', 1000),
+                'tolerance': machine_data.get('tolerance', 50)
+            },
             'created_at': datetime.now().isoformat()
         }
         
@@ -168,7 +173,7 @@ def add_machine(machine_data):
 
 
 def update_machine(machine_id, machine_data):
-    """แก้ไขข้อมูล machine"""
+    """แก้ไขข้อมูล machine (รวม configuration)"""
     try:
         for machine in machines:
             if machine.get('id') == machine_id:
@@ -179,6 +184,19 @@ def update_machine(machine_id, machine_data):
                     'status': machine_data.get('status', machine.get('status')),
                     'updated_at': datetime.now().isoformat()
                 })
+                
+                # ✅ Update config if provided
+                if 'target_area_min' in machine_data or 'target_area_max' in machine_data or 'tolerance' in machine_data:
+                    if 'config' not in machine:
+                        machine['config'] = {}
+                    
+                    if 'target_area_min' in machine_data:
+                        machine['config']['target_area_min'] = machine_data['target_area_min']
+                    if 'target_area_max' in machine_data:
+                        machine['config']['target_area_max'] = machine_data['target_area_max']
+                    if 'tolerance' in machine_data:
+                        machine['config']['tolerance'] = machine_data['tolerance']
+                
                 save_machines()
                 return True, 'Machine updated successfully'
         

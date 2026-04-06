@@ -119,7 +119,6 @@ camera_active = False
 contour_detection_active = False  # Track if contour detection is active
 multi_object_detection_active = False  # Track if multi-object detection is active
 three_zone_detection_active = False  # Track if 3-zone detection is active
-small_object_mode = False  # ✅ Track if small object detection mode is active (<= 50mm)
 current_zoom = 1.0  # Current zoom level
 rubber_type = "black"  # ✅ Rubber type: "black" (dark on white) or "white" (white on dark)
 
@@ -151,18 +150,10 @@ current_settings = {
         'height_mm': 165,
         'depth_mm': 55
     },
-    # ✅ Small Object Mode settings (ขนาดเล็ก ≤ 50mm)
-    'small_object_threshold_mm': 50,  # ขนาดเล็กคือไม่เกิน 50mm
-    'large_object_min_mm': 50,         # ขนาดใหญ่คือมากกว่า 50mm
-    'small_calibration_width': 0.6494,  # ✅ Calibration สำหรับ Small Mode (218 → 78mm)
-    'small_calibration_height': 0.7154, # ✅ Calibration สำหรับ Small Mode (416 → 165mm)
-    'small_target_width': 25,          # ✅ ความกว้างเป้าหมายสำหรับ Small Mode (default 25mm)
-    'small_target_height': 25,         # ✅ ความสูงเป้าหมายสำหรับ Small Mode (default 25mm)
-    'small_tolerance': 3,              # ✅ ความคลาดเคลื่อนที่ยอมรับได้ ±3mm
-    # ✅ Large Object Mode settings (ขนาดใหญ่ > 50mm)
-    'large_calibration_width': 0.6494,  # ✅ Calibration สำหรับ Large Mode (218 → 78mm)
-    'large_calibration_height': 0.7154, # ✅ Calibration สำหรับ Large Mode (416 → 165mm)
-    'max_objects': 30                  # ✅ จำนวนวัตถุสูงสุดที่ detect (default 30)
+    # ✅ Calibration settings
+    'calibration_width': 0.6494,  # Calibration factor (218px → 78mm)
+    'calibration_height': 0.7154, # Calibration factor (416px → 165mm)
+    'max_objects': 30             # Maximum objects to detect (default 30)
 }
 
 # ⭐ UPDATED CALIBRATION (2026-01-27): Iteration 4 - CORRECTED FORMULA
@@ -2048,26 +2039,17 @@ def detect_by_contour(frame, depth):
             layer6 = cv2.resize(cv2.applyColorMap(combined_mask, cv2.COLORMAP_HOT), (240, 180))  # Combined
             layer7 = cv2.resize(cv2.applyColorMap(binary_morphed, cv2.COLORMAP_HOT), (240, 180))  # Morphology
             
-            # Layer 8: Contours with bbox
-            frame_small = cv2.resize(frame, (240, 180))
-            layer8 = cv2.cvtColor(frame_small.copy(), cv2.COLOR_BGR2RGB)
-        
-        # ⭐ Declare global ก่อนใช้งาน
-        global small_object_mode
-        
-        objects = []
-        
-        # ⭐ ปรับ threshold ตาม Small/Large Mode
-        if small_object_mode:
-            min_area = 60  # ✅ Small Mode: ลดเป็น 60px (รับวัตถุเล็กมากขึ้น)
-            min_size = 8   # ✅ ขนาดขั้นต่ำ 8x8px
-            min_depth_ratio = 0.002  # ✅ 0.2% valid depth (ผ่อนปรนมาก)
-            print(f"[SMALL MODE] Using relaxed thresholds: min_area={min_area}px, min_size={min_size}x{min_size}px, min_depth={min_depth_ratio*100:.1f}%")
-        else:
-            min_area = 400  # Large Mode: ลดจาก 500 เป็น 400
-            min_size = 25   # ลดจาก 30 เป็น 25
-            min_depth_ratio = 0.01
-            print(f"[LARGE MODE] Using strict thresholds: min_area={min_area}px, min_size={min_size}x{min_size}px")
+        # Layer 8: Contours with bbox
+        frame_small = cv2.resize(frame, (240, 180))
+        layer8 = cv2.cvtColor(frame_small.copy(), cv2.COLOR_BGR2RGB)
+    
+    objects = []
+    
+    # ⭐ Contour detection thresholds (optimized for flexible object sizes)
+    min_area = 400  # Minimum contour area in pixels
+    min_size = 25   # Minimum width/height in pixels
+    min_depth_ratio = 0.01  # Minimum valid depth ratio
+    print(f"[CONTOUR] Using thresholds: min_area={min_area}px, min_size={min_size}x{min_size}px")
         
         # ✅ DEBUG: Log total contours found
         print(f"[CONTOUR DEBUG] Found {len(contours)} raw contours")
@@ -2088,29 +2070,27 @@ def detect_by_contour(frame, depth):
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
             
-            # ⭐ Small Mode: ไม่กรอง area เลย
-            if not small_object_mode:
-                if area < min_area:
-                    if i < 5:
-                        print(f"  [SKIP] Contour {i}: area={area:.0f}px < {min_area}px")
-                    continue
+            # Filter by minimum area
+            if area < min_area:
+                if i < 5:
+                    print(f"  [SKIP] Contour {i}: area={area:.0f}px < {min_area}px")
+                continue
             
             # ✅ ใช้ boundingRect โดยตรงกับ contour
             x, y, w, h = cv2.boundingRect(contour)
             
-            # ⭐ Small Mode: ไม่กรองขนาดเลย
-            if not small_object_mode:
-                if w < min_size or h < min_size:
-                    if i < 5:
-                        print(f"  [SKIP] Contour {i}: size {w}x{h}px < {min_size}x{min_size}px")
-                    continue
+            # Filter by minimum size
+            if w < min_size or h < min_size:
+                if i < 5:
+                    print(f"  [SKIP] Contour {i}: size {w}x{h}px < {min_size}x{min_size}px")
+                continue
                 
-                # Aspect Ratio
-                aspect_ratio = float(w) / h if h > 0 else 0
-                if aspect_ratio < 0.05 or aspect_ratio > 20:
-                    if i < 5:
-                        print(f"  [SKIP] Contour {i}: bad aspect ratio {aspect_ratio:.2f}")
-                    continue
+            # Aspect Ratio check
+            aspect_ratio = float(w) / h if h > 0 else 0
+            if aspect_ratio < 0.05 or aspect_ratio > 20:
+                if i < 5:
+                    print(f"  [SKIP] Contour {i}: bad aspect ratio {aspect_ratio:.2f}")
+                continue
             
             # === Valid Depth Check ===
             roi_depth = depth_mm[y:y+h, x:x+w]
@@ -2118,12 +2098,11 @@ def detect_by_contour(frame, depth):
             
             valid_depth_ratio = len(valid_depth) / (w * h) if (w * h) > 0 else 0
             
-            # ⭐ Small Mode: ไม่เช็ค depth ratio เลย
-            if not small_object_mode:
-                if valid_depth_ratio < min_depth_ratio:
-                    if i < 5:
-                        print(f"  [SKIP] Contour {i}: not enough valid depth {valid_depth_ratio*100:.1f}% < {min_depth_ratio*100:.1f}%")
-                    continue
+            # Filter by valid depth ratio
+            if valid_depth_ratio < min_depth_ratio:
+                if i < 5:
+                    print(f"  [SKIP] Contour {i}: not enough valid depth {valid_depth_ratio*100:.1f}% < {min_depth_ratio*100:.1f}%")
+                continue
             
             avg_depth = float(np.median(valid_depth)) if len(valid_depth) > 10 else 0
             
@@ -2196,15 +2175,10 @@ def detect_by_contour(frame, depth):
                 
                 objects = filtered_objects
             
-            # ⭐ กรองตาม area หลัง NMS - ปรับตาม Small/Large Mode
-            if small_object_mode:
-                min_bbox_area = 200  # Small Mode: รับวัตถุที่เล็กกว่า (200px = ~14x14px)
-                objects = [obj for obj in objects if (obj['bbox'][2] * obj['bbox'][3]) > min_bbox_area]
-                print(f"[SMALL MODE] After area filter (>{min_bbox_area}px): {len(objects)} objects remain")
-            else:
-                min_bbox_area = 500  # ✅ ลดจาก 3000 → 500 เพื่อรองรับวัตถุเล็ก (เช่น 20x20mm)
-                objects = [obj for obj in objects if (obj['bbox'][2] * obj['bbox'][3]) > min_bbox_area]
-                print(f"[LARGE MODE] After area filter (>{min_bbox_area}px): {len(objects)} objects remain")
+            # ⭐ กรองตาม area หลัง NMS - รับวัตถุเล็กที่มีขนาดเพียงพอ
+            min_bbox_area = 500  # ✅ ลดจาก 3000 → 500 เพื่อรองรับวัตถุเล็ก (เช่น 20x20mm)
+            objects = [obj for obj in objects if (obj['bbox'][2] * obj['bbox'][3]) > min_bbox_area]
+            print(f"[AREA FILTER] After area filter (>{min_bbox_area}px): {len(objects)} objects remain")
             
             # ✅ DEBUG: แสดงขนาดของวัตถุทั้งหมดก่อนกรอง
             max_objects = current_settings.get('max_objects', 30)
@@ -2214,51 +2188,17 @@ def detect_by_contour(frame, depth):
                     print(f"  [{i}] width={obj.get('width_mm', 0):.1f}mm, height={obj.get('height_mm', 0):.1f}mm, "
                           f"bbox={obj['bbox']}, area={obj['bbox'][2]*obj['bbox'][3]:.0f}px")
             
-            # ✅ กรองตามขนาดและเช็ค in_range: Small Object Mode หรือ Large Object Mode
-            # Note: small_object_mode already declared as global at line 1788
-            if small_object_mode:
-                # โหมดขนาดเล็ก: เช็ค in_range ด้วย target width และ height แยกกัน
-                threshold = current_settings['small_object_threshold_mm']
-                target_width = current_settings.get('small_target_width', 25)
-                target_height = current_settings.get('small_target_height', 25)
-                tolerance = current_settings['small_tolerance']
-                
-                print(f"[SMALL MODE] Target: W={target_width}±{tolerance}mm, H={target_height}±{tolerance}mm")
-                print(f"[SMALL MODE] ✅ Range Accepted: W={target_width-tolerance}-{target_width+tolerance}mm, H={target_height-tolerance}-{target_height+tolerance}mm")
-                
-                # ✅ รับทุกวัตถุ และเช็ค in_range
-                filtered_objects = []
-                for obj in objects:
-                    width = obj.get('width_mm', 0)
-                    height = obj.get('height_mm', 0)
-                    
-                    # เช็ค in_range: ทั้ง width และ height ต้องอยู่ในช่วง
-                    width_in_range = (target_width - tolerance) <= width <= (target_width + tolerance)
-                    height_in_range = (target_height - tolerance) <= height <= (target_height + tolerance)
-                    in_range = width_in_range and height_in_range
-                    
-                    obj['in_range'] = in_range
-                    obj['target_width'] = target_width
-                    obj['target_height'] = target_height
-                    obj['tolerance'] = tolerance
-                    filtered_objects.append(obj)
-                    
-                    # แสดงขนาดของทุกวัตถุ
-                    status = "✅ IN RANGE" if in_range else "❌ OUT RANGE"
-                    print(f"    {status}: W={width:.1f}mm (target={target_width}±{tolerance}mm), H={height:.1f}mm (target={target_height}±{tolerance}mm)")
-                
-                objects = filtered_objects
-                in_range_count = sum(1 for obj in objects if obj.get('in_range', False))
-                print(f"[SMALL OBJECT MODE] Filtered to {len(objects)} objects (<= {threshold}mm), {in_range_count} in range (W={target_width}±{tolerance}mm, H={target_height}±{tolerance}mm)")
-            else:
-                # โหมดขนาดใหญ่: รับวัตถุที่ >= 20mm (ลดจาก 50mm เพื่อรองรับการ calibration)
-                min_size = 20  # ✅ ลดจาก 50 → 20 เพื่อรองรับวัตถุ 20x20mm สำหรับ calibration
-                objects = [obj for obj in objects 
-                          if obj.get('width_mm', 0) >= min_size or obj.get('height_mm', 0) >= min_size]
-                # Large mode ไม่มีเกณฑ์ in_range
-                for obj in objects:
-                    obj['in_range'] = None
-                print(f"[LARGE OBJECT MODE] Filtered to {len(objects)} objects (>= {min_size}mm)")
+            # ✅ กรองตามขนาดและเช็ค in_range: ใช้ area-based measurement
+            # Objects รับเฉพาะที่มีขนาดเหมาะสม (>= 20mm)
+            min_size = 20  # Minimum object size (width or height)
+            objects = [obj for obj in objects 
+                      if obj.get('width_mm', 0) >= min_size or obj.get('height_mm', 0) >= min_size]
+            
+            # Set in_range based on area-based config (ใช้ใน pass/fail logic ที่ line 420)
+            for obj in objects:
+                obj['in_range'] = None  # Will be calculated by pass/fail logic
+            
+            print(f"[OBJECT FILTER] Filtered to {len(objects)} objects (>= {min_size}mm)")
             
             # 🎯 ถ้าเปิด 3-Zone mode: กรองวัตถุตาม zone
             if three_zone_detection_active:
@@ -2318,13 +2258,12 @@ def detect_by_contour(frame, depth):
                     x, y, w, h = obj['bbox']
                     print(f"  [{obj['zone_name']}] bbox={obj['bbox']}, size={obj['width_mm']:.1f}x{obj['height_mm']:.1f}mm")
             
-            elif multi_object_detection_active or small_object_mode:  # ✅ Small Mode แสดงหลาย object อัตโนมัติ
+            elif multi_object_detection_active:
                 # โหมดหลายวัตถุ: เลือกตามจำนวนที่ตั้งค่าไว้ (default 30)
                 max_objects = current_settings.get('max_objects', 30)
                 selected_objects = objects[:max_objects]
                 
-                mode_name = "SMALL MODE" if small_object_mode else "MULTI"
-                print(f"[{mode_name}] Showing up to {max_objects} objects, selected {len(selected_objects)}")
+                print(f"[MULTI MODE] Showing up to {max_objects} objects, selected {len(selected_objects)}")
                 
                 # วาดกรอบทุกวัตถุที่เลือกบน layer 8 + ภาพหลัก
                 for idx, obj in enumerate(selected_objects):
@@ -3059,100 +2998,6 @@ def get_three_zone_status():
             'message': str(e)
         }), 500
 
-@app.route('/api/camera/small-object/toggle', methods=['POST'])
-def toggle_small_object_mode():
-    """Toggle small object detection mode (<= 50mm)"""
-    global small_object_mode
-    try:
-        # ✅ รับ target_width, target_height, tolerance จาก request
-        data = request.get_json() or {}
-        if 'target_width' in data:
-            target_w = int(data['target_width'])
-            if 0 <= target_w <= 200:
-                current_settings['small_target_width'] = target_w
-        
-        if 'target_height' in data:
-            target_h = int(data['target_height'])
-            if 0 <= target_h <= 200:
-                current_settings['small_target_height'] = target_h
-        
-        if 'tolerance' in data:
-            tol = int(data['tolerance'])
-            if 0 <= tol <= 20:
-                current_settings['small_tolerance'] = tol
-        
-        small_object_mode = not small_object_mode
-        
-        return jsonify({
-            'success': True,
-            'active': small_object_mode,
-            'target_width': current_settings.get('small_target_width', 25),
-            'target_height': current_settings.get('small_target_height', 25),
-            'tolerance': current_settings['small_tolerance'],
-            'message': f'Small object mode (W:{current_settings.get("small_target_width", 25)}mm H:{current_settings.get("small_target_height", 25)}mm ±{current_settings["small_tolerance"]}mm) {"enabled" if small_object_mode else "disabled"}'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@app.route('/api/camera/small-object/set-target', methods=['POST'])
-def set_small_object_target():
-    """Set target width/height for small object detection"""
-    try:
-        data = request.get_json()
-        target_w = int(data.get('target_width', 25))
-        target_h = int(data.get('target_height', 25))
-        tolerance = int(data.get('tolerance', 3))
-        
-        if 0 <= target_w <= 200 and 0 <= target_h <= 200 and 0 <= tolerance <= 20:
-            current_settings['small_target_width'] = target_w
-            current_settings['small_target_height'] = target_h
-            current_settings['small_tolerance'] = tolerance
-            
-            # บันทึกลง config
-            system_config.update({
-                'small_target_width': target_w,
-                'small_target_height': target_h,
-                'small_tolerance': tolerance
-            }, auto_save=True)
-            
-            return jsonify({
-                'success': True,
-                'target_width': target_w,
-                'target_height': target_h,
-                'tolerance': tolerance,
-                'range': f"W: {max(0, target_w - tolerance)}-{target_w + tolerance}mm, H: {max(0, target_h - tolerance)}-{target_h + tolerance}mm"
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid values: Width/Height must be 0-200mm, Tolerance must be 0-20mm'
-            }), 400
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@app.route('/api/camera/small-object/status', methods=['GET'])
-def get_small_object_status():
-    """Get small object detection mode status"""
-    global small_object_mode
-    try:
-        return jsonify({
-            'success': True,
-            'active': small_object_mode,
-            'target_size': current_settings['small_target_size'],
-            'tolerance': current_settings['small_tolerance']
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
 @app.route('/api/camera/contour/mask', methods=['GET'])
 def get_contour_mask():
     """Get contour visualization mask"""
@@ -3440,43 +3285,77 @@ def start_desktop_measurement():
     try:
         data = request.get_json()
         machine_id = data.get('machine_id')
-        config_id = data.get('config_id')
+        config_id = data.get('config_id')  # Optional: for backward compatibility
         machine_name_req = data.get('machine_name', '')
         lot_id_req = data.get('lot_id', None)
         lot_name_req = data.get('lot_name', '')
         
-        if not machine_id or not config_id:
+        if not machine_id:
             return jsonify({
                 'success': False,
-                'error': 'Missing machine_id or config_id'
+                'error': 'Missing machine_id'
             }), 400
         
-        # โหลด configuration จากไฟล์
-        config_file = Path(BASE_PATH) / 'configurations.json'
-        if not config_file.exists():
-            # Fallback: try parent directory
-            config_file = Path(BASE_PATH).parent / 'python_scripts' / 'configurations.json'
-        if not config_file.exists():
-            return jsonify({
-                'success': False,
-                'error': f'Configuration file not found (looked in {BASE_PATH})'
-            }), 404
-        
-        with open(config_file, 'r', encoding='utf-8') as f:
-            configurations = json.load(f)
-        
-        # หา configuration ที่ตรงกับ config_id
         selected_config = None
-        for config in configurations:
-            if config['id'] == config_id:
-                selected_config = config
-                break
         
+        # ✅ Try to get config from machine object (NEW architecture)
+        try:
+            machines_file = Path(BASE_PATH) / 'machines.json'
+            if not machines_file.exists():
+                machines_file = Path(BASE_PATH).parent / 'python_scripts' / 'machines.json'
+            
+            if machines_file.exists():
+                with open(machines_file, 'r', encoding='utf-8') as f:
+                    machines = json.load(f)
+                
+                # Find machine by ID
+                machine = next((m for m in machines if m['id'] == machine_id), None)
+                
+                if machine and machine.get('config'):
+                    # Machine has inline config - use it!
+                    selected_config = machine['config']
+                    # Add machine name if not provided
+                    if not machine_name_req:
+                        machine_name_req = machine.get('name', '')
+                    print(f"[MEASUREMENT] Using inline config from machine {machine_id}")
+        except Exception as e:
+            print(f"[WARNING] Could not load machine config: {e}")
+        
+        # ❌ Fallback: Get config from configurations.json (OLD architecture)
         if not selected_config:
-            return jsonify({
-                'success': False,
-                'error': f'Configuration {config_id} not found'
-            }), 404
+            if not config_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'Machine has no inline config and config_id not provided'
+                }), 400
+            
+            # โหลด configuration จากไฟล์
+            config_file = Path(BASE_PATH) / 'configurations.json'
+            if not config_file.exists():
+                # Fallback: try parent directory
+                config_file = Path(BASE_PATH).parent / 'python_scripts' / 'configurations.json'
+            if not config_file.exists():
+                return jsonify({
+                    'success': False,
+                    'error': f'Configuration file not found (looked in {BASE_PATH})'
+                }), 404
+            
+            with open(config_file, 'r', encoding='utf-8') as f:
+                configurations = json.load(f)
+            
+            # หา configuration ที่ตรงกับ config_id
+            for config in configurations:
+                if config['id'] == config_id:
+                    selected_config = config
+                    break
+            
+            if not selected_config:
+                return jsonify({
+                    'success': False,
+                    'error': f'Configuration {config_id} not found'
+                }), 404
+            
+            print(f"[MEASUREMENT] Using config from configurations.json (config_id={config_id})")
         
         # เปิดใช้งาน configuration
         active_measurement_config = selected_config
@@ -3494,8 +3373,8 @@ def start_desktop_measurement():
         }
         was_detecting = False  # Reset detection state for fresh event counting
         
-        print(f"[MEASUREMENT] Session started - Machine: {machine_id}, Config: {selected_config['name']}")
-        print(f"[MEASUREMENT] Target: {selected_config['target_area_min']}-{selected_config['target_area_max']} mm²")
+        print(f"[MEASUREMENT] Session started - Machine: {machine_id}")
+        print(f"[MEASUREMENT] Target: {selected_config.get('target_area_min', 'N/A')}-{selected_config.get('target_area_max', 'N/A')} mm²")
         
         # 🔄 Broadcast state change to all clients (Admin Web + Desktop App)
         socketio.emit('measurement_state_changed', {

@@ -2,7 +2,7 @@
   <aside class="sidebar" :class="{ 'open': isOpen }">
     <div class="sidebar-header">
       <div class="logo">
-        <img src="/Icon/output-onlinepngtools_PSE.ico" alt="PSE Logo" class="logo-image" />
+        <img src="/Icon/output-onlinepngtools_PSE.png" alt="PSE Logo" class="logo-image" />
       </div>
     </div>
 
@@ -26,76 +26,6 @@
       </div>
       -->
       
-      <!-- ✅ Small Object Mode - Fixed (ไม่ต้อง toggle) -->
-      <div class="nav-section size-selector-section">
-        <h3 class="nav-section-title">Small Object Detection</h3>
-        
-        <!-- Target Size Input -->
-        <div class="target-size-input">
-          <label class="input-label">Target Size (mm)</label>
-          
-          <!-- Width Input -->
-          <div class="input-group">
-            <label class="input-sublabel">Width:</label>
-            <input 
-              type="number" 
-              v-model.number="targetWidth" 
-              min="0" 
-              max="200" 
-              step="1"
-              class="size-input"
-              placeholder="Width"
-            >
-            <span class="input-unit">mm</span>
-          </div>
-          
-          <!-- Height Input -->
-          <div class="input-group">
-            <label class="input-sublabel">Height:</label>
-            <input 
-              type="number" 
-              v-model.number="targetHeight" 
-              min="0" 
-              max="200" 
-              step="1"
-              class="size-input"
-              placeholder="Height"
-            >
-            <span class="input-unit">mm</span>
-          </div>
-          
-          <!-- Tolerance Input -->
-          <div class="input-group">
-            <label class="input-sublabel">Tolerance:</label>
-            <input 
-              type="number" 
-              v-model.number="tolerance" 
-              min="0" 
-              max="20" 
-              step="1"
-              class="size-input"
-              placeholder="±"
-            >
-            <span class="input-unit">mm</span>
-          </div>
-          
-          <!-- Save Button -->
-          <button 
-            class="save-target-btn" 
-            @click="saveTargetSize"
-            :disabled="!targetWidth || !targetHeight"
-          >
-            <IconSvg name="check" :size="16" class="btn-icon" />
-            <span>Save Target Size</span>
-          </button>
-          
-          <p class="input-hint">
-            Range: W={{ Math.max(0, targetWidth - tolerance) }}-{{ targetWidth + tolerance }}mm, 
-            H={{ Math.max(0, targetHeight - tolerance) }}-{{ targetHeight + tolerance }}mm
-          </p>
-        </div>
-      </div>
-
       <!-- Camera Control -->
       <div class="nav-section">
         <h3 class="nav-section-title">Camera Control</h3>
@@ -198,6 +128,9 @@
     </nav>
 
     <div class="sidebar-footer">
+      <div class="glove-character">
+        <img src="/Icon/glove_character.png" alt="Glove Character" class="glove-image" />
+      </div>
       <div class="version-info">
         <div class="version-text">Version 1.0.0</div>
         <div class="copyright">© 2025 PSE Vision</div>
@@ -263,10 +196,6 @@ const zoomLevel = ref(1.0)
 // ⭐ Multi-object detection control
 const isMultiObjectActive = ref(false)
 const isThreeZoneActive = ref(false)
-const isSmallObjectMode = ref(false)  // ✅ Small object mode state
-const targetWidth = ref(25)   // ✅ Target width (mm)
-const targetHeight = ref(25)  // ✅ Target height (mm)
-const tolerance = ref(3)      // ✅ Tolerance (±mm)
 const rubberType = ref('black')  // ✅ Rubber type: 'black' or 'white'
 
 // 🌐 Dynamic server URL
@@ -446,63 +375,6 @@ const toggleRubberType = async () => {
   }
 }
 
-// ✅ Toggle small object detection mode (≤ 50mm)
-const toggleSmallObjectMode = async () => {
-  try {
-    const response = await fetch(`${API_BASE}/api/camera/small-object/toggle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        target_width: targetWidth.value,
-        target_height: targetHeight.value,
-        tolerance: tolerance.value
-      })
-    })
-    const data = await response.json()
-    
-    if (data.success) {
-      isSmallObjectMode.value = data.active
-      console.log('[Small Object Mode]', data.message, 
-        `Target: W=${targetWidth.value}mm H=${targetHeight.value}mm ±${tolerance.value}mm`)
-      
-      // 🔄 เมื่อเปลี่ยนโหมด อาจต้อง reset Multi/3-Zone
-      // Small Mode: ไม่มี 3-Zone
-      if (isSmallObjectMode.value && isThreeZoneActive.value) {
-        await toggleThreeZone() // ปิด 3-Zone อัตโนมัติ
-      }
-    }
-  } catch (error) {
-    console.error('[Small Object Mode] Failed to toggle:', error)
-  }
-}
-
-// ✅ Save target size (new function)
-const saveTargetSize = async () => {
-  try {
-    const response = await fetch(`${API_BASE}/api/camera/small-object/set-target`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        target_width: targetWidth.value,
-        target_height: targetHeight.value,
-        tolerance: tolerance.value
-      })
-    })
-    const data = await response.json()
-    if (data.success) {
-      alert(`✅ Target size saved!\nWidth: ${targetWidth.value}mm ±${tolerance.value}mm\nHeight: ${targetHeight.value}mm ±${tolerance.value}mm`)
-      console.log('[Target Size] Saved:', data)
-    } else {
-      alert('❌ Failed to save target size: ' + (data.message || 'Unknown error'))
-    }
-  } catch (error) {
-    console.error('[Target Size] Failed to save:', error)
-    alert('❌ Failed to save target size')
-  }
-}
-
-// ✅ REMOVED: updateTargetSize - replaced by saveTargetSize
-
 const calibrate = () => {
   emit('open-calibration')
 }
@@ -537,7 +409,7 @@ const resetMeasurement = () => {
 }
 
 .sidebar-header {
-  padding: 20px;
+  padding: 24px 20px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -549,8 +421,8 @@ const resetMeasurement = () => {
 }
 
 .logo-image {
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
   object-fit: contain;
   filter: drop-shadow(0 2px 8px rgba(99, 102, 241, 0.3));
   transition: all 0.3s ease;
@@ -704,191 +576,6 @@ const resetMeasurement = () => {
 
 .nav-icon {
   font-size: 18px;
-}
-
-/* ✅ Size Selector - Toggle Switch Styles */
-.size-selector-section {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(16, 185, 129, 0.1));
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 16px;
-}
-
-.size-selector-section .nav-section-title {
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.size-toggle-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: 8px 0;
-}
-
-.size-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transition: all 0.3s ease;
-  min-width: 45px;
-  text-align: center;
-}
-
-.size-label.active {
-  color: var(--primary-color);
-  transform: scale(1.1);
-}
-
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 26px;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 34px;
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 4px;
-  bottom: 4px;
-  background: white;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-input:checked + .toggle-slider {
-  background: linear-gradient(135deg, #10b981, #059669);
-}
-
-input:checked + .toggle-slider:before {
-  transform: translateX(24px);
-}
-
-.toggle-slider:hover {
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
-}
-
-/* ✅ Target Size Input Styles */
-.target-size-input {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color);
-}
-
-.input-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.input-sublabel {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  min-width: 60px;
-}
-
-.input-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.size-input {
-  flex: 1;
-  background: var(--bg-dark);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 8px 12px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.size-input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
-}
-
-.input-unit {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--primary-color);
-  white-space: nowrap;
-  min-width: 30px;
-}
-
-.save-target-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: linear-gradient(135deg, var(--primary-color), #7c3aed);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin: 12px 0 8px 0;
-}
-
-.save-target-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
-}
-
-.save-target-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.save-target-btn .btn-icon {
-  width: 16px;
-  height: 16px;
-}
-
-.input-hint {
-  font-size: 9px;
-  color: var(--text-secondary);
-  margin: 4px 0 0 0;
-  text-align: center;
-  line-height: 1.3;
 }
 
 .status-card {
@@ -1070,8 +757,28 @@ input:checked + .toggle-slider:before {
 }
 
 .sidebar-footer {
-  padding: 20px;
-  border-top: 1px solid var(--border-color);
+  padding: 20px 20px 20px 20px;
+}
+
+.glove-character {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 0;
+}
+
+.glove-image {
+  max-width: 100%;
+  height: auto;
+  max-height: 200px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
+  transition: transform 0.3s ease;
+}
+
+.glove-image:hover {
+  transform: scale(1.05);
 }
 
 /* ✨ Size Mode Toggle Switch Styles */
@@ -1196,11 +903,19 @@ input:checked + .toggle-slider:before {
 /* Responsive Design */
 @media (max-width: 1024px) {
   .sidebar {
-    width: 240px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px;
+    z-index: 999;
+    transform: translateX(-100%);
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
   }
   
   .sidebar.open {
-    width: 240px;
+    width: 280px;
+    transform: translateX(0);
   }
   
   .sidebar-header {

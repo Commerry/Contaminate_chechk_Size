@@ -286,16 +286,40 @@ REM ========================================
 cd /d "%~dp0"
 
 echo [PSE Vision] Starting system...
+echo.
+
+REM Kill existing Backend processes on port 64020
+echo [PSE Vision] Checking for existing Backend processes...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :64020 ^| findstr LISTENING') do (
+    echo [PSE Vision] Killing process on port 64020 (PID: %%a)
+    taskkill /F /PID %%a >nul 2>&1
+)
+
+REM Kill any python.exe running backend_server.py
+echo [PSE Vision] Killing any existing backend_server.py processes...
+for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /FO LIST ^| findstr "PID:"') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+
+REM Wait a moment for processes to terminate
+timeout /t 2 /nobreak >nul
+
+echo [PSE Vision] All old processes cleared.
+echo.
 
 REM Start Backend Server in background
+echo [PSE Vision] Starting Backend Server...
 start "PSE Backend" /MIN "$pythonCmd" "%~dp0python_scripts\backend_server.py"
 
 REM Wait for backend to start
-timeout /t 8 /nobreak >nul
+echo [PSE Vision] Waiting for backend to initialize...
+timeout /t 10 /nobreak >nul
 
 REM Open Admin Web in browser
+echo [PSE Vision] Opening Admin Web...
 start http://localhost:64020
 
+echo.
 echo [PSE Vision] System started successfully!
 echo - Backend: http://localhost:64020
 echo - Admin Web: http://localhost:64020

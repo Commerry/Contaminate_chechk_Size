@@ -37,11 +37,6 @@
           <span>Machines</span>
         </button>
 
-        <button class="menu-item" @click="handleAction('configurations')">
-          <IconSvg name="list" :size="18" />
-          <span>Configurations</span>
-        </button>
-
         <button class="menu-item" @click="handleAction('lots')">
           <IconSvg name="package" :size="18" />
           <span>LOT Management</span>
@@ -62,7 +57,6 @@ const emit = defineEmits([
   'open-calibration',
   'open-database',
   'open-machines',
-  'open-configurations',
   'open-lots'
 ])
 
@@ -81,9 +75,6 @@ const handleAction = (action) => {
       break
     case 'machines':
       emit('open-machines')
-      break
-    case 'configurations':
-      emit('open-configurations')
       break
     case 'lots':
       emit('open-lots')

@@ -72,6 +72,68 @@
           </div>
         </div>
 
+        <!-- ✅ Configuration Section (Inline) -->
+        <div class="config-section">
+          <h4 class="section-subtitle">
+            <IconSvg name="settings" :size="18" />
+            การตั้งค่าขนาดพื้นที่ (Area Configuration)
+          </h4>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>พื้นที่ต่ำสุด (mm²) <span class="required">*</span></label>
+              <input 
+                v-model.number="formData.target_area_min" 
+                type="number" 
+                class="form-input"
+                min="0"
+                step="10"
+                placeholder="เช่น 500"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>พื้นที่สูงสุด (mm²) <span class="required">*</span></label>
+              <input 
+                v-model.number="formData.target_area_max" 
+                type="number" 
+                class="form-input"
+                min="0"
+                step="10"
+                placeholder="เช่น 1000"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>ความคลาดเคลื่อนที่ยอมรับ (±mm²) <span class="required">*</span></label>
+            <input 
+              v-model.number="formData.tolerance" 
+              type="number" 
+              class="form-input"
+              min="0"
+              step="5"
+              placeholder="เช่น 50"
+            />
+          </div>
+
+          <div class="config-preview">
+            <div class="preview-label">ช่วงพื้นที่ที่ยอมรับได้:</div>
+            <div class="preview-value">
+              <span class="value-highlight">
+                {{ formData.target_area_min - formData.tolerance }} mm²
+              </span>
+              <span class="separator">~</span>
+              <span class="value-highlight">
+                {{ formData.target_area_max + formData.tolerance }} mm²
+              </span>
+            </div>
+            <div class="preview-sublabel">
+              (เป้าหมาย: {{ formData.target_area_min }}-{{ formData.target_area_max }} mm² ±{{ formData.tolerance }} mm²)
+            </div>
+          </div>
+        </div>
+
         <div class="form-actions">
           <button class="btn btn-secondary" @click="cancelForm">
             ยกเลิก
@@ -109,6 +171,14 @@
                   :class="statusClass(machine.status)"
                 >
                   {{ statusText(machine.status) }}
+                </span>
+              </div>
+              <!-- ✅ แสดง Configuration -->
+              <div v-if="machine.config" class="machine-config">
+                <span class="config-label">📏 พื้นที่:</span>
+                <span class="config-value">
+                  {{ machine.config.target_area_min }}-{{ machine.config.target_area_max }} mm²
+                  <span class="tolerance">±{{ machine.config.tolerance }}</span>
                 </span>
               </div>
               <div v-if="machine.description" class="machine-description">
@@ -151,7 +221,10 @@ const formData = ref({
   name: '',
   description: '',
   location: '',
-  status: 'active'
+  status: 'active',
+  target_area_min: 500,
+  target_area_max: 1000,
+  tolerance: 50
 })
 
 const statusClass = (status) => {
@@ -194,7 +267,10 @@ const editMachine = (machine) => {
     name: machine.name,
     description: machine.description || '',
     location: machine.location || '',
-    status: machine.status || 'active'
+    status: machine.status || 'active',
+    target_area_min: machine.config?.target_area_min || 500,
+    target_area_max: machine.config?.target_area_max || 1000,
+    tolerance: machine.config?.tolerance || 50
   }
   showCreateForm.value = false
 }
@@ -206,7 +282,10 @@ const cancelForm = () => {
     name: '',
     description: '',
     location: '',
-    status: 'active'
+    status: 'active',
+    target_area_min: 500,
+    target_area_max: 1000,
+    tolerance: 50
   }
 }
 
@@ -567,6 +646,138 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   margin-top: 24px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+/* ✅ Configuration Section Styles */
+.config-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(16, 185, 129, 0.05));
+  border: 2px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.config-section:hover {
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
+}
+
+.section-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #7c3aed;
+  margin: 0 0 16px 0;
+}
+
+.config-preview {
+  margin-top: 16px;
+  padding: 16px;
+  background: white;
+  border: 2px solid #e0e7ff;
+  border-radius: 10px;
+}
+
+.preview-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.preview-value {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.value-highlight {
+  color: #7c3aed;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.separator {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.preview-sublabel {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.machine-config {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.config-label {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.config-value {
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.tolerance {
+  font-size: 12px;
+  color: #10b981;
+  margin-left: 4px;
 }
 
 .btn {
