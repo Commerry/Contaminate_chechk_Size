@@ -129,7 +129,7 @@
 
     <div class="sidebar-footer">
       <div class="glove-character">
-        <img src="/Icon/glove_character.png" alt="Glove Character" class="glove-image" />
+        <img :src="gloveImage" alt="Glove Character" class="glove-image" />
       </div>
       <div class="version-info">
         <div class="version-text">Version 1.0.0</div>
@@ -142,6 +142,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import IconSvg from './IconSvg.vue'
+import gloveImage from '../../Icon/glove_character.png'
 
 const props = defineProps({
   isConnected: {

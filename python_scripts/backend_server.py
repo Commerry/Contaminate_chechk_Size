@@ -2039,17 +2039,17 @@ def detect_by_contour(frame, depth):
             layer6 = cv2.resize(cv2.applyColorMap(combined_mask, cv2.COLORMAP_HOT), (240, 180))  # Combined
             layer7 = cv2.resize(cv2.applyColorMap(binary_morphed, cv2.COLORMAP_HOT), (240, 180))  # Morphology
             
-        # Layer 8: Contours with bbox
-        frame_small = cv2.resize(frame, (240, 180))
-        layer8 = cv2.cvtColor(frame_small.copy(), cv2.COLOR_BGR2RGB)
-    
-    objects = []
-    
-    # ⭐ Contour detection thresholds (optimized for flexible object sizes)
-    min_area = 400  # Minimum contour area in pixels
-    min_size = 25   # Minimum width/height in pixels
-    min_depth_ratio = 0.01  # Minimum valid depth ratio
-    print(f"[CONTOUR] Using thresholds: min_area={min_area}px, min_size={min_size}x{min_size}px")
+            # Layer 8: Contours with bbox
+            frame_small = cv2.resize(frame, (240, 180))
+            layer8 = cv2.cvtColor(frame_small.copy(), cv2.COLOR_BGR2RGB)
+        
+        objects = []
+        
+        # ⭐ Contour detection thresholds (optimized for flexible object sizes)
+        min_area = 400  # Minimum contour area in pixels
+        min_size = 25   # Minimum width/height in pixels
+        min_depth_ratio = 0.01  # Minimum valid depth ratio
+        print(f"[CONTOUR] Using thresholds: min_area={min_area}px, min_size={min_size}x{min_size}px")
         
         # ✅ DEBUG: Log total contours found
         print(f"[CONTOUR DEBUG] Found {len(contours)} raw contours")
