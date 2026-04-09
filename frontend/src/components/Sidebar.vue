@@ -2,7 +2,7 @@
   <aside class="sidebar" :class="{ 'open': isOpen }">
     <div class="sidebar-header">
       <div class="logo">
-        <img :src="pseLogoImage" alt="PSE Logo" class="logo-image" />
+        <img src="/Icon/output-onlinepngtools_PSE.png" alt="PSE Logo" class="logo-image" />
       </div>
     </div>
 
@@ -142,8 +142,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import IconSvg from './IconSvg.vue'
-import gloveImage from '../../Icon/glove_character.png'
-import pseLogoImage from '../../Icon/output-onlinepngtools_PSE.png'
+const gloveImage = '/Icon/glove_character.png'
 
 const props = defineProps({
   isConnected: {
