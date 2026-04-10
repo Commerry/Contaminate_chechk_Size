@@ -931,7 +931,7 @@ onUnmounted(() => {
 
 /* Mobile Menu Button */
 .mobile-menu-btn {
-  display: flex;
+  display: none;
   position: fixed;
   top: 50%;
   left: 8px;
