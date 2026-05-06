@@ -65,11 +65,13 @@
         <div class="camera-section">
           <CameraView 
             :isActive="isCameraActive"
+            :isConnected="isConnected"
             :isPredicting="isPredicting"
             :isContourDetecting="isContourDetecting"
             :threeZoneMode="threeZoneMode"
             :detections="detections"
             :frameData="currentFrame"
+            :statusMessage="cameraStatusMessage"
           />
         </div>
 
@@ -215,9 +217,12 @@ const showMachines = ref(false)
 const showLots = ref(false)  // 🎯 LOT management modal
 const showCalibration = ref(false)
 const currentTime = ref('')
-const sidebarOpen = ref(true)  // ✅ เริ่มต้นเป็นเปิด
+const MOBILE_BREAKPOINT = 1024
+const isMobileViewport = ref(typeof window !== 'undefined' ? window.innerWidth <= MOBILE_BREAKPOINT : false)
+const sidebarOpen = ref(!isMobileViewport.value)
 const detections = ref([])
 const currentFrame = ref(null)
+const cameraStatusMessage = ref('Click "Start Camera" to begin')
 const contrastFrame = ref(null)
 const depthFrame = ref(null)
 const contourMask = ref(null)  // เพิ่ม contour mask
@@ -348,10 +353,12 @@ const toggleCamera = async () => {
     console.log('📹 Starting camera...')
     addLog('Starting camera...', 'info')
     await startCamera()
+    focusMainContentOnMobile()
   } else {
     console.log('⏹️ Stopping camera...')
     addLog('Camera stopped', 'warning')
     stopCamera()
+    focusMainContentOnMobile()
   }
 }
 
@@ -389,6 +396,7 @@ const toggleContour = async () => {
           hasObject: false
         }
         console.log('✅ Contour detection stopped - ROI and stats cleared')
+        focusMainContentOnMobile()
       }
     } else {
       // Start contour detection
@@ -404,6 +412,7 @@ const toggleContour = async () => {
           console.warn('⚠️ Multi-object start failed:', e.message)
         }
         console.log('✅ Contour detection started (background subtraction mode)')
+        focusMainContentOnMobile()
       } else {
         alert(response.data.message || 'Failed to start contour detection')
       }
@@ -460,6 +469,7 @@ const startCamera = async () => {
       console.log('✅ Camera connection successful!')
       addLog('Camera connected successfully', 'success')
       isConnected.value = true
+      cameraStatusMessage.value = 'Camera connected. Waiting for live frames...'
       // Start polling for frames and measurements immediately
       // Backend will initialize camera in background
       startDataPolling()
@@ -475,12 +485,14 @@ const startCamera = async () => {
       addLog(`Camera connection failed: ${result.message}`, 'error')
       isConnected.value = false
       isCameraActive.value = false
+      cameraStatusMessage.value = result.message || 'Failed to initialize camera'
       alert('Failed to connect to camera: ' + result.message)
     }
   } catch (error) {
     console.error('❌ Failed to start camera:', error)
     isConnected.value = false
     isCameraActive.value = false
+    cameraStatusMessage.value = 'No OAK camera detected or backend connection failed'
     alert('Error connecting to camera. Please ensure the backend server is running and an OAK camera is connected.')
   }
 }
@@ -495,6 +507,7 @@ const stopCamera = async () => {
   }
   
   isConnected.value = false
+  cameraStatusMessage.value = 'Camera stopped'
   stopDataPolling()
 }
 
@@ -504,6 +517,18 @@ const updateSettings = (newSettings) => {
   store.updateSettings(newSettings)
   // ✅ แสดง notification เมื่อบันทึกการตั้งค่า
   success('บันทึกการตั้งค่าเรียบร้อยแล้ว')
+}
+
+const syncResponsiveLayout = () => {
+  const mobile = window.innerWidth <= MOBILE_BREAKPOINT
+  isMobileViewport.value = mobile
+  sidebarOpen.value = !mobile
+}
+
+const focusMainContentOnMobile = () => {
+  if (isMobileViewport.value) {
+    sidebarOpen.value = false
+  }
 }
 
 // Toggle sidebar for mobile
@@ -694,6 +719,17 @@ const startStateSyncPolling = () => {
       }
       
       isConnected.value = status.connected || false
+      if (!status.camera_active) {
+        cameraStatusMessage.value = 'Click "Start Camera" to begin'
+      } else if (!status.hasDevice) {
+        cameraStatusMessage.value = 'No OAK camera detected. Check USB, power, or network camera IP.'
+      } else if (!status.has_frames) {
+        cameraStatusMessage.value = 'Camera connected. Waiting for frames...'
+      } else if (!status.frames_fresh) {
+        cameraStatusMessage.value = 'Camera connected but frames are stale. Reconnecting...'
+      } else {
+        cameraStatusMessage.value = 'Live camera feed active'
+      }
       
     } catch (error) {
       // Silent fail
@@ -723,6 +759,13 @@ const checkCameraStatus = async () => {
       isCameraActive.value = true
       isConnected.value = true
       isContourDetecting.value = status.contour_detection_active || false
+      if (!status.hasDevice) {
+        cameraStatusMessage.value = 'No OAK camera detected. Check USB, power, or network camera IP.'
+      } else if (!status.has_frames) {
+        cameraStatusMessage.value = 'Camera connected. Waiting for frames...'
+      } else {
+        cameraStatusMessage.value = 'Live camera feed active'
+      }
       
       // 🔧 Seed activeSetup from server state (measurement may already be running)
       if (status.measurement_running && status.active_config) {
@@ -750,11 +793,13 @@ const checkCameraStatus = async () => {
       isCameraActive.value = false
       isContourDetecting.value = false
       isConnected.value = false
+      cameraStatusMessage.value = 'No OAK camera detected. Connect the device, then press Start Camera.'
       console.log('ℹ️ Camera is not active on server')
     }
   } catch (error) {
     console.log('⚠️ Backend not ready yet or connection failed:', error.message)
     isConnected.value = false
+    cameraStatusMessage.value = 'Backend not ready or camera unavailable'
   }
 }
 
@@ -762,6 +807,8 @@ const checkCameraStatus = async () => {
 onMounted(() => {
   updateTime()
   setInterval(updateTime, 1000)
+  syncResponsiveLayout()
+  window.addEventListener('resize', syncResponsiveLayout)
   
   // 🔥 Initialize Socket.IO connection (use dynamic server URL for multi-client support)
   const serverUrl = window.location.origin  // e.g. http://10.2.110.89:64020
@@ -775,18 +822,23 @@ onMounted(() => {
   // ✅ Socket connection events
   socket.on('connect', () => {
     isConnected.value = true
+    if (!isCameraActive.value) {
+      cameraStatusMessage.value = 'Backend connected. Click "Start Camera" to begin.'
+    }
     console.log('✅ SocketIO connected to backend')
     success('เชื่อมต่อ backend สำเร็จ')
   })
 
   socket.on('disconnect', () => {
     isConnected.value = false
+    cameraStatusMessage.value = 'Backend disconnected'
     console.log('❌ SocketIO disconnected from backend')
     warning('ขาดการเชื่อมต่อ backend')
   })
 
   socket.on('connect_error', (err) => {
     isConnected.value = false
+    cameraStatusMessage.value = 'Unable to connect to backend'
     console.error('❌ SocketIO connection error:', err.message)
     error('ไม่สามารถเชื่อมต่อ backend: ' + err.message)
   })
@@ -807,6 +859,7 @@ onMounted(() => {
     if (payload?.frame) {
       // Update main frame - wrap in { image } object as expected by CameraView
       currentFrame.value = { image: payload.frame }
+      cameraStatusMessage.value = 'Live camera feed active'
       
       // Update detections from measurements
       if (Array.isArray(payload.measurements)) {
@@ -908,6 +961,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', syncResponsiveLayout)
   // Disconnect socket
   if (socket) {
     socket.disconnect()

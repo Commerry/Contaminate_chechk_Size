@@ -2,41 +2,32 @@
 ; This script customizes the installer behavior
 
 !macro customInit
-  ; Check if old version is installed
+  ; Check if old version is installed (try both HKLM and HKCU)
   ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\{com.pse.vision.worker}" "UninstallString"
-  
-  ${If} $0 != ""
-    ; Old version found - ask user
-    MessageBox MB_YESNO|MB_ICONQUESTION "พบโปรแกรมเวอร์ชันเก่าติดตั้งอยู่$\n$\nต้องการถอนการติดตั้งเวอร์ชันเก่าอัตโนมัติหรือไม่?$\n$\n(แนะนำให้เลือก Yes เพื่อป้องกันความขัดแย้ง)" IDYES uninstall_old IDNO skip_uninstall
-    
-    uninstall_old:
-      ; Kill running processes
-      DetailPrint "Closing running PSE Vision application..."
-      nsExec::ExecToLog 'taskkill /F /IM "PSE Vision Worker Display.exe" /T'
-      Sleep 2000
-      
-      ; Run uninstaller silently
-      DetailPrint "Uninstalling old version..."
-      ClearErrors
-      ExecWait '$0 /S _?=$INSTDIR'
-      Sleep 2000
-      
-      ; Clean up any leftover files
-      RMDir /r "$INSTDIR\logs"
-      RMDir /r "$INSTDIR\datasets"
-      Delete "$INSTDIR\INSTALLATION_INFO.txt"
-      Delete "$INSTDIR\START_SYSTEM.bat"
-      
-      DetailPrint "Old version removed successfully"
-      Goto continue_install
-    
-    skip_uninstall:
-      MessageBox MB_OK "การติดตั้งจะดำเนินการต่อ$\n$\nหากพบปัญหา กรุณาถอนโปรแกรมเก่าด้วยตนเอง"
+  ${If} $0 == ""
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\{com.pse.vision.worker}" "UninstallString"
   ${EndIf}
-  
-  continue_install:
-  ; Show installer message
-  MessageBox MB_OK "PSE Vision System Installer$\n$\nThis will install:$\n- Desktop App (Worker Display)$\n- Admin Web Interface (Port 64020)$\n- Backend API (Port 64020)$\n- Auto-start on Windows boot"
+
+  ${If} $0 != ""
+    ; Old version found - silent auto-uninstall (no prompt)
+    DetailPrint "Found existing installation - removing old version..."
+
+    ; Kill running processes first
+    nsExec::ExecToLog 'taskkill /F /IM "PSE Vision Worker Display.exe" /T'
+    Sleep 2000
+
+    ; Run uninstaller silently
+    ClearErrors
+    ExecWait '$0 /S _?=$INSTDIR'
+    Sleep 3000
+
+    ; Clean up leftover files that uninstaller may skip
+    Delete "$INSTDIR\INSTALLATION_INFO.txt"
+    Delete "$INSTDIR\START_SYSTEM.bat"
+    Delete "$INSTDIR\START_BACKEND.bat"
+
+    DetailPrint "Old version removed successfully"
+  ${EndIf}
 !macroend
 
 !macro customInstall

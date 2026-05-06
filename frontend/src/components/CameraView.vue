@@ -31,12 +31,12 @@
           <template v-else>Detection Paused</template>
         </div>
 
-        <!-- Placeholder when camera is off -->
-        <div v-if="!isActive" class="camera-placeholder">
+        <!-- Placeholder when camera is off or no frame is available -->
+        <div v-if="!isActive || !frameData?.image" class="camera-placeholder">
           <div class="placeholder-content">
             <IconSvg name="camera" :size="64" style="opacity: 0.4; margin-bottom: 16px;" />
-            <p class="placeholder-text">Camera Standby</p>
-            <p class="placeholder-subtext">Click "Start Camera" to begin</p>
+            <p class="placeholder-text">{{ !isActive ? 'Camera Standby' : (isConnected ? 'Waiting for Camera Feed' : 'Camera Not Connected') }}</p>
+            <p class="placeholder-subtext">{{ statusMessage }}</p>
           </div>
         </div>
       </div>
@@ -66,6 +66,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  isConnected: {
+    type: Boolean,
+    default: false
+  },
   isPredicting: {
     type: Boolean,
     default: false
@@ -85,6 +89,10 @@ const props = defineProps({
   frameData: {
     type: Object,
     default: null
+  },
+  statusMessage: {
+    type: String,
+    default: 'Click "Start Camera" to begin'
   },
   showDepthMap: {
     type: Boolean,
@@ -473,7 +481,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.88) 0%, rgba(15, 15, 15, 0.96) 100%);
+  backdrop-filter: blur(2px);
   animation: fadeIn 0.5s ease;
 }
 

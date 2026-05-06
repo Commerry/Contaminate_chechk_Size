@@ -908,14 +908,14 @@ const resetMeasurement = () => {
     top: 0;
     left: 0;
     height: 100vh;
-    width: 280px;
+    width: min(320px, calc(100vw - 32px));
     z-index: 999;
     transform: translateX(-100%);
     box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
   }
   
   .sidebar.open {
-    width: 280px;
+    width: min(320px, calc(100vw - 32px));
     transform: translateX(0);
   }
   
@@ -936,6 +936,10 @@ const resetMeasurement = () => {
   .sidebar-nav {
     padding: 16px;
   }
+
+  .sidebar-footer {
+    display: none;
+  }
   
   .nav-button {
     padding: 10px 12px;
@@ -945,7 +949,7 @@ const resetMeasurement = () => {
 
 @media (max-width: 768px) {
   .sidebar {
-    width: 260px;
+    width: min(300px, calc(100vw - 24px));
   }
   
   .logo-icon {
@@ -971,8 +975,8 @@ const resetMeasurement = () => {
 
 @media (max-width: 480px) {
   .sidebar {
-    width: 280px;
-    max-width: calc(100vw - 60px);
+    width: min(280px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
   }
 }
 </style>

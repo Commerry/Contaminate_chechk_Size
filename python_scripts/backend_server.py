@@ -245,10 +245,10 @@ def camera_loop():
     global latest_frame, latest_depth, running, oak_device, oak_pipeline, camera_active, last_frame_time
     
     consecutive_errors = 0
-    max_consecutive_errors = 150  # เพิ่มเป็น 150 เพื่อให้อดทนต่อ LAN latency มากขึ้น
-    max_time_without_frame = 90  # 90 วินาที สำหรับ LAN camera (เพิ่มจาก 60)
-    max_recovery_attempts = 3  # ลดเหลือ 3 attempts แต่มีคุณภาพดีกว่า
-    grace_period = 15.0  # ระยะเวลาผ่อนผันก่อน recovery จริง 15 วินาที
+    max_consecutive_errors = 100  # ลดลงเพื่อ detect ปัญหาเร็วขึ้น
+    max_time_without_frame = 60  # 60 วินาที (ลดจาก 90)
+    max_recovery_attempts = 5  # เพิ่มเป็น 5 attempts
+    grace_period = 10.0  # ลดลงเป็น 10 วินาที
     recovery_attempts = 0
     total_errors = 0
     frame_count = 0
@@ -263,6 +263,11 @@ def camera_loop():
     frame_skip_counter = 0
     frame_skip_rate = 4  # ⚡ เปลี่ยนเป็น 4 = ส่งทุก 5 เฟรม (~5 FPS) เพื่อ smooth มากขึ้น
     
+    # ✅ Cache output queues to avoid recreating them every frame
+    cached_device_for_queues = None
+    queue_rgb = None
+    queue_depth = None
+
     print("[CAMERA LOOP] ⚡ Starting camera loop thread (OPTIMIZED mode)...")
     print(f"[CAMERA LOOP] Frame skip rate: {frame_skip_rate} (sending every {frame_skip_rate + 1} frames = ~5 FPS for smoothness)")
     print(f"[CAMERA LOOP] Recovery settings: max_errors={max_consecutive_errors}, timeout={max_time_without_frame}s, grace={grace_period}s")
@@ -301,12 +306,26 @@ def camera_loop():
             
             # === FRAME ACQUISITION ===
             if oak_device and not oak_device.isClosed():
+                # ✅ Refresh output queues only when device changes (cache to avoid per-frame overhead)
+                if oak_device != cached_device_for_queues:
+                    try:
+                        queue_rgb = oak_device.getOutputQueue(name="rgb", maxSize=1, blocking=False)
+                        queue_depth = oak_device.getOutputQueue(name="depth", maxSize=1, blocking=False)
+                        cached_device_for_queues = oak_device
+                        print("[CAMERA] ✅ Output queues initialized/refreshed")
+                    except Exception as qe:
+                        print(f"[CAMERA] ⚠️ Failed to init queues: {qe}")
+                        queue_rgb = None
+                        queue_depth = None
+                
+                if queue_rgb is None or queue_depth is None:
+                    time.sleep(0.5)
+                    continue
+                
                 # Get RGB frame with maxSize=1 to prevent buffer buildup
-                queue_rgb = oak_device.getOutputQueue(name="rgb", maxSize=1, blocking=False)
                 in_rgb = queue_rgb.tryGet()
                 
                 # Get depth frame with maxSize=1
-                queue_depth = oak_device.getOutputQueue(name="depth", maxSize=1, blocking=False)
                 in_depth = queue_depth.tryGet()
                 
                 # ✅ Clear old frames from queue to prevent lag
@@ -516,6 +535,10 @@ def camera_loop():
                         print(f"[CAMERA] ✅ Stable - {frame_count} frames sent, {total_errors} errors, est. bandwidth: {estimated_bandwidth_mbps:.1f} Mbps")
             else:
                 print(" ❌ Device is closed unexpectedly!")
+                # Reset queue cache so they get re-created after reconnect
+                cached_device_for_queues = None
+                queue_rgb = None
+                queue_depth = None
                 # พยายาม reconnect ทันที
                 if recovery_attempts < max_recovery_attempts:
                     recovery_attempts += 1
@@ -556,7 +579,7 @@ def camera_loop():
             should_recover = (
                 (consecutive_errors >= max_consecutive_errors or time_since_success > max_time_without_frame) and
                 time_since_success > grace_period and  # ให้เวลาผ่อนผัน
-                time_since_recovery > 60.0  # ห่างจาก recovery ครั้งก่อนอย่างน้อย 60 วินาที
+                time_since_recovery > 20.0  # ลดเหลือ 20 วินาที (จากเดิม 60 วินาที)
             )
             
             if should_recover:
@@ -579,6 +602,10 @@ def camera_loop():
                         
                         oak_device = None
                         oak_pipeline = None
+                        # Reset queue cache
+                        cached_device_for_queues = None
+                        queue_rgb = None
+                        queue_depth = None
                         
                         # Wait longer for LAN camera (network latency)
                         wait_time = min(5.0 * (2 ** (recovery_attempts - 1)), 20.0)  # เพิ่มเป็น 5s-20s สำหรับ LAN
@@ -744,20 +771,22 @@ def initialize_oak_camera():
         # Auto-detect CSI/USB first, then Network if configured
         # Supports: OAK-D-CM4 (CSI), OAK-D (USB), OAK-1-PoE (Network), etc.
         print(f"[STEP 7] Connecting to OAK camera...")
-        
+
         # Build connection methods based on configuration
         connection_methods = [
             ('CSI/USB Auto-detect', 'auto'),  # All local cameras (CSI/USB)
+            ('USB2 Fallback', 'usb2'),         # USB 2.0 speed - more stable on some systems
         ]
-        
+
         # Add network method only if IP is configured
         if network_camera_ip:
             connection_methods.append(('Network', network_camera_ip))
-        
-        max_attempts_per_method = 2  # Quick tries - only 2 attempts each
+
+        max_attempts_per_method = 3  # เพิ่มเป็น 3 attempts
         connection_success = False
         connection_delay = 2  # seconds between retries
         connected_method = None
+        connected_method_name = None
         
         for method_name, method_config in connection_methods:
             if connection_success:
@@ -774,6 +803,10 @@ def initialize_oak_camera():
                         # This works for: OAK-D-CM4, OAK-D, OAK-1, OAK-D-Lite, etc.
                         oak_device = dai.Device(pipeline)
                         
+                    elif method_name == 'USB2 Fallback':
+                        # Force USB 2.0 mode - more stable on some Windows/USB3 setups
+                        oak_device = dai.Device(pipeline, dai.UsbSpeed.HIGH)
+                        
                     elif method_name == 'Network':
                         # Connect to Network/PoE camera with specific IP
                         # This works for: OAK-1-PoE, OAK-D-PoE, etc.
@@ -783,6 +816,7 @@ def initialize_oak_camera():
                     # Device created successfully
                     oak_pipeline = pipeline
                     connected_method = method_config if method_name == 'Network' else 'auto'
+                    connected_method_name = method_name
                     print(f"✓ Connected!")
                     connection_success = True
                     break
@@ -846,7 +880,7 @@ def initialize_oak_camera():
             mxid = oak_device.getMxId()
             
             # Determine connection type and icon
-            if method_name == 'CSI/USB Auto-detect':
+            if connected_method_name == 'CSI/USB Auto-detect':
                 # Try to determine if CSI or USB
                 if 'CM4' in device_name.upper() or 'CSI' in device_name.upper():
                     conn_type = "CSI Direct (Raspberry Pi)"
@@ -854,6 +888,9 @@ def initialize_oak_camera():
                 else:
                     conn_type = "USB Direct"
                     conn_icon = "🔌"
+            elif connected_method_name == 'Auto-discovered':
+                conn_type = "Auto-discovered Device (LAN/USB)"
+                conn_icon = "🌐"
             else:
                 conn_type = f"Network/PoE ({connected_method})"
                 conn_icon = "🌐"
@@ -2527,18 +2564,28 @@ def connect_camera():
         else:
             print("=== Camera initialization failed! ===")
             system_config.set('camera_active', 0, auto_save=True)
+            network_camera_ip = system_config.get('network_camera_ip', '').strip()
+            fail_message = 'No OAK camera detected. Check USB/CSI connection and power.'
+            if network_camera_ip:
+                fail_message = f"Cannot connect to network camera at {network_camera_ip}. Verify IP/power/network."
             return jsonify({
                 'success': False,
-                'message': 'Failed to initialize camera'
-            }), 500
+                'message': fail_message,
+                'camera_active': False,
+                'connected': False,
+                'hasDevice': oak_device is not None
+            }), 200
             
     except Exception as e:
         print(f"=== Camera connect error: {e} ===")
         system_config.set('camera_active', 0, auto_save=True)
         return jsonify({
             'success': False,
-            'message': str(e)
-        }), 500
+            'message': f"Camera connection error: {str(e)}",
+            'camera_active': False,
+            'connected': False,
+            'hasDevice': False
+        }), 200
 
 @app.route('/api/camera/disconnect', methods=['POST'])
 def disconnect_camera():

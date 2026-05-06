@@ -53,17 +53,38 @@ REM Step 2: Install/Update Python Packages
 REM ========================================================================
 echo [2/5] Installing/Updating Python packages...
 cd python_scripts
-python -m pip install --upgrade pip --quiet
-python -m pip install -r backend_requirements.txt --upgrade --quiet
 
+REM Upgrade pip first
+python -m pip install --upgrade pip --quiet
+
+REM Force-reinstall depthai to exact required version (2.27.0.0)
+REM This ensures correct version even if a different version is installed
+echo [INFO] Ensuring depthai==2.27.0.0 ...
+python -m pip install "depthai==2.27.0.0" --force-reinstall --quiet 2>nul
 if %errorlevel% neq 0 (
-    echo [ERROR] Failed to install Python packages
-    cd ..
-    pause
-    exit /b 1
+    python -m pip install "depthai==2.27.0.0" --force-reinstall --quiet --user 2>nul
 )
 
-echo [OK] Python packages up to date
+REM Install missing packages only (no --upgrade to avoid locking issues)
+REM Packages already at correct version will be skipped automatically
+python -m pip install -r backend_requirements.txt --quiet 2>nul
+
+REM Verify all critical packages can be imported
+echo [INFO] Verifying package imports...
+python -c "import flask, flask_cors, flask_socketio, cv2, numpy, depthai, pyodbc; print('[OK] All packages verified')"
+if %errorlevel% neq 0 (
+    echo [ERROR] Package verification failed - trying repair install...
+    python -m pip install -r backend_requirements.txt --force-reinstall --quiet --user 2>nul
+    python -c "import flask, flask_cors, flask_socketio, cv2, numpy, depthai, pyodbc; print('[OK] Repair successful')"
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to install required Python packages
+        cd ..
+        pause
+        exit /b 1
+    )
+)
+
+echo [OK] Python packages ready
 cd ..
 echo.
 
@@ -163,12 +184,3 @@ echo.
 echo Starting system now...
 timeout /t 3 /nobreak >nul
 call "%~dp0START.bat"
-echo   1. Press Windows + R
-echo   2. Type: shell:startup
-echo   3. Copy "START.bat" into that folder
-echo.
-echo --------------------------------------------------------
-echo.
-echo Starting system now...
-timeout /t 3 /nobreak >nul
-call START.bat
